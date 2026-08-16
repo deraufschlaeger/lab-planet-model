@@ -1,0 +1,26 @@
+import numpy as np
+
+def find_radius_profile(density, mass_profile):
+  ''' INPUT:
+      density = constant value or array of values
+      mass_profile = [m1,m2,m3,..., mN]
+
+      OUTPUT looks like
+      r_profile = [[r1lower, r1, r1upper], [r2lower, r2, r2upper], [r3lower, r3, r3upper], ... ,[rN-1lower, rN-1, rN-1upper], [rNlower, rN, rNupper]]
+      '''
+
+  N = len(mass_profile)
+  r_profile = np.zeros((N,3))
+  if type(density) not in [np.ndarray, list]:
+    density = np.full(N, density)
+
+  rilower = 0
+
+  for i in range(0,N): #stops @ N-1 (index of shell N is N-1)
+    r_profile[i][0] = rilower
+    riupper = np.cbrt(3*mass_profile[i]/(4*np.pi*density[i]) + rilower**3) #FORMULA 21
+    r_profile[i][2] = riupper
+    r_profile[i][1] = (rilower + riupper)/2 #STEP 3
+    rilower = riupper
+
+  return r_profile

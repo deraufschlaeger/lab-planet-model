@@ -1,0 +1,52 @@
+from multiiter import multi_iteration, create_eos_profile
+
+#jupyter:
+
+'''rho_0 = 1249.5 kg/m^3
+K_0 = 4.26 GPa
+K_0' = 7.75
+
+Perovskite
+rho_0 4105.9
+K_0 = 270.6
+K_0' = 3.81
+'''
+
+layers_def = [
+    {
+        'eos_type': 'rocky',
+        'params': {'k_0': 270.6e9, 'k_d': 3.81, 'rho_0': 4105.9},
+        'num_layers': 2 # 50 layers for the rocky core
+    },
+    {
+        'eos_type': 'he',
+        'params': {},
+        'num_layers': 10 # 50 layers for the hydrogen shell
+    },
+    {
+        'eos_type': 'h',
+        'params': {},
+        'num_layers': 90 # 50 layers for the hydrogen shell
+    }
+]
+
+eos_profile = create_eos_profile(layers_def)
+
+N = len(eos_profile)
+
+mass_total = 1.898e27 #kg
+
+rho_0 = 1300 #kg/m^3
+
+T_0 = 300
+
+r_profile, p_profiile, rho_profile, tmp_profile = multi_iteration(rho_0, mass_total, N, T_0, eos_profile, quiet=False, max_iter = 40)
+
+#--------------PLOT temperature over density----------------------------------------
+
+import matplotlib.pyplot as plt
+
+if len(rho_profile)==len(tmp_profile):
+    print('plotting temp over rho')
+    plt.plot(rho_profile, tmp_profile)
+    plt.show()

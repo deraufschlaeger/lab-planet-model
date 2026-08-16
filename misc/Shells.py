@@ -1,0 +1,168 @@
+import numpy as np
+
+def create_eos_profile(layers_def):
+    '''INPUT Example:
+
+    layer_definitions_example = [
+    {
+        'eos_type': 'rocky',
+        'params': {'k_0': 200e9, 'k_d': 3.5, 'rho_0': 5500},
+        'num_layers': 50 # 50 layers for the rocky core
+    },
+    {
+        'eos_type': 'h',
+        'params': {'temperature': 100000}, # Assuming a constant temperature for this hydrogen section
+        'num_layers': 50 # 50 layers for the hydrogen shell
+    }
+]
+
+    OUTPUT should be a list of dictionaries.
+  '''
+    full_eos_profile=[]
+
+    for layer_dict in layers_def:
+        eos_type = layer_dict['eos_type']
+        if 'params' in layer_dict:
+            params_dict = layer_dict['params']
+        n_layers = layer_dict['num_layers']
+        for _ in range(n_layers):
+            layer={'eos': eos_type}
+            layer.update(params_dict)
+            full_eos_profile.append(layer)
+
+    return full_eos_profile
+
+def rocky_eos(pressure, K_0, K_d, rho_0):
+    if hasattr(pressure, "ndim") and pressure.ndim > 1:
+        P = pressure[:, 1]
+    else:
+        P = pressure
+    return rho_0*(1+K_d*P/K_0)**(1/K_d)
+
+def calc_density_eos(pressure, T, interp = interpolator, log_x_interp=True):
+    """Berechnet das Dichteprofil mithilfe einer Zustandsgleichung (EOS) gegeben durch den Interpolator.
+
+    Die Funktion wertet einen Interpolator basierend auf der Temperatur und dem
+    Druck aus. Sie ist flexibel und akzeptiert sowohl einzelne Skalarwerte als
+    auch Arrays. Falls ein 2D-Druckprofil übergeben wird, extrahiert sie
+    automatisch die relevante Druckspalte.
+
+    Parameters
+    ----------
+    pressure : float, array_like of shape (N,) or (N, 3)
+        Das Druckprofil. Kann eine einzelne Zahl (Skalar), ein 1D-Array
+        oder ein 2D-Array mit 3 Spalten sein (hierbei wird die 2. Spalte mit Index 1 genutzt).
+        Einheit der Eingabe: Pascal (Pa).
+    T : float or array_like of shape (N,)
+        Das Temperaturprofil in Kelvin (K). Muss dieselbe Länge wie
+        `pressure` haben, wenn Arrays übergeben werden.
+    interp : callable
+        Die Interpolationsfunktion (z. B. für Wasserstoff oder Helium).
+        Erwartet eine Liste/ein Array mit ``[T, P]`` und
+        gibt ein Array zurück, dessen erstes Element [0] den Dichtewert enthält.
+
+    Returns
+    -------
+    density_profile : float or ndarray of shape (N,)
+        Die berechnete Dichte in kg/m³. Gibt einen einzelnen Skalar zurück,
+        wenn die Eingaben Skalare waren, andernfalls ein Array.
+
+    Raises
+    ------
+    ValueError
+        Wenn `T` und `pressure_profile` als Arrays übergeben werden,
+        aber nicht die gleiche Länge haben.
+    """
+    is_iterable = hasattr(pressure, "__len__") or hasattr(T, "__len__")
+
+    if is_iterable:
+        P = np.asarray(pressure)
+        T = np.asarray(T)
+
+        N = len(pressure)
+        if len(T) != N:
+            raise ValueError("T and pressure_profile must have the same length")
+
+        P = P[:,1] if P.ndim > 1 else P
+        
+        if log_x_interp:
+            density_profile = np.exp(interp([np.log(T), np.log(P)]))[0]
+        else:
+            density_profile = np.exp(interp([T, P]))[0]
+
+        return density_profile
+    else:
+        P = np.asarray(pressure)
+        P = P[:,1] if P.ndim > 1 else P
+        T = np.asarray(T)
+        if log_x_interp:
+            density_profile = np.exp(interp([np.log(T), np.log(P)]))[0]
+        else:
+            density_profile = np.exp(interp([T, P]))[0]
+
+        return density_profile
+
+def density_from_eos_profile(pressure_profile, temperature, eos_profile, interpH=interpolator, interpHe=interpolatorHe, **kwargs):
+  ''' INPUT:
+      pressure_profile = [[p1lower, p1, p1upper], [p2lower. p2, p2upper], ..., [pNlower, pN, pNupper]]
+      temperature = [T1, T2, ..., Tn]
+      eos = which equation of state to use? "he", "h", "rocky"(then K_0 and K'_0 and rho_0 need to be provided)
+
+      FUNCTION gives the density from an equation of state. Different Equation of states
+
+      OUTOUT should look like
+      density = [[rho1lower, rho1, rho1upper], [rho2lower, rho2, rho2upper], ..., [rhoNlower, rhoN, rhoNupper]]
+      '''
+  N = len(pressure_profile)
+  if N != len(eos_profile):
+      raise ValueError('eos_profile needs to be same lenght as pressure_profile')
+
+  if type(temperature) not in [np.ndarray, list]:
+    temperature = np.full(N, temperature)
+  T = np.array(temperature)
+
+  density_profile = np.zeros(N)
+
+  for i, layer_dict in enumerate(eos_profile):
+      eos=layer_dict['eos']
+
+      if eos == "he":
+          density_profile[i] = calc_density_eos(pressure_profile[i][1], T[i], interp=interpH)
+      elif eos == "h":
+          density_profile[i] = calc_density_eos(pressure_profile[i][1], T[i], interp=interpHe)
+      elif eos == "rocky":
+          if "k_0" not in layer_dict or "k_d" not in layer_dict or "rho_0" not in layer_dict:
+              raise ValueError(f"'k_0', 'k_d'(k_0') and 'rho_0' must be provided for the rocky equation of state in shell with index {i}")
+
+          K_0 = layer_dict['k_0']
+          K_d = layer_dict['k_d']
+          rho_0 = layer_dict['rho_0']
+          density_profile[i] = rocky_eos(pressure_profile[i][1], K_0, K_d, rho_0)
+      else:
+          raise ValueError(f"Unknown equation of state: {eos} in shell with index {i}!")
+
+  return density_profile
+
+def one_cycle_var(mass_profile, first_density, temperature, eos_profile, **kwargs):
+  ''' INPUT:
+      mass_profile = [m1,m2,m3,..., mN]
+      first_density = constant value or array of values
+      temperature = [T1, T2, ..., Tn]
+      eos_profile = {first transition: 'eos_below_first_transition',
+                     second transition: 'eos_between_first_and_second_transition',
+                     ...}
+      FUNCTION represents one cycle
+
+      OUTPUT should look like
+      new_density = [[rho1lower, rho1, rho1upper], [rho2lower, rho2, rho2upper], ..., [rhoNlower, rhoN, rhoNupper]]
+      '''
+
+  r_profile = find_radius_profile(first_density, mass_profile) #RADIUS
+  p_profile = find_pressure_profile(r_profile, mass_profile) #PRESSURE
+
+  new_density = density_from_eos_profile(p_profile, temperature, eos_profile, **kwargs) #EQUATION OF STATE
+
+  temp_profile = find_T_profile(p_profile, eos_profile, new_density, temperature[-1], **kwargs)
+
+  return r_profile, p_profile, new_density, temp_profile
+

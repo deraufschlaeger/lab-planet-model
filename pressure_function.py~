@@ -1,0 +1,30 @@
+import numpy as np
+G = 6.674e-11
+
+def find_pressure_profile(radius_profile, mass_profile):
+  ''' INPUT:
+      radius_profile = [[r1lower, r1, r1upper], [r2lower, r2, r2upper], [r3lower, r3, r3upper], ... , [rNlower, rN, rNupper]]
+      mass_profile = [m1,m2,m3,..., mN]
+
+      OUTPUT should look like
+      pressure_profile = [[p1lower, p1, p1upper], [p2lower. p2, p2upper], ..., [pNlower, pN, pNupper]]'''
+
+  N = len(radius_profile)
+  if len(mass_profile) != N:
+    raise ValueError("mass_profile and radius_profile must have the same length")
+
+  p_profile = np.zeros((N,3))
+
+  p_profile[-1][2] = 100000
+
+  for i in range(N-1,0,-1): #starts @ N-1 (index of shell N) and goes down to 1 (index of shell 2)
+    p_profile[i-1][2] = np.sum(G/(4*np.pi)*np.array([mass_profile[j]*np.sum([mass_profile[k] for k in range(j)]) / radius_profile[j][1]**4 for j in range(N-1, i-1,-1)])) #FORMULA (17)
+    p_profile[i][0] = p_profile[i-1][2]
+
+    p_profile[i][1] = (p_profile[i][0]+p_profile[i][2])/2 #FORMULA (16)
+
+  #afterwards special treatment for i=0 (shell 1) [0, 0, r1upper]
+  p_profile[0][0] = p_profile[0][2] + 3*G*mass_profile[0]**2/(8*np.pi*radius_profile[0][2]**4) #deltar1 FORMULA (19)
+  p_profile[0][1] = (p_profile[0][0]+p_profile[0][2])/2
+
+  return p_profile
