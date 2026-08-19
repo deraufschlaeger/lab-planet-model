@@ -150,7 +150,7 @@ from create_profiles import create_mass_profile, create_temp_profile, create_den
 def multi_iteration(starting_density, mass_total, N, T, eos_profile, mass_profile=None,
                     mass_distro_profile='constant', temp_distro_profile='constant',
                     density_distro_profile='constant', tolerance=1e-6, max_iter=20,
-                    quiet=True, print_iter=2, **kwargs):
+                    quiet=True, **kwargs):
   if mass_profile==None:
     mass_profile = create_mass_profile(mass_total, N, profile=mass_distro_profile)
   else:
@@ -177,7 +177,7 @@ def multi_iteration(starting_density, mass_total, N, T, eos_profile, mass_profil
 
     rel_diff = abs(new_rho[0] - rho[0]) / rho[0]
 
-    if quiet == False: #and iteration >= max_iter-print_iter:
+    if quiet == False:
       print(f"Relative Änderung bei Iteration {iteration+1}:", rel_diff)
       
     radius_for_each_iter_array.append(r_profile[-1][-1])
