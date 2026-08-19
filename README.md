@@ -48,5 +48,5 @@ tested ideas or random files but all of them are not used in the actual model.
    * the eos_profile dictionary created by the create_eos_profile function
    * optional: mass profile: a list of length N with a mass for each layer. If not provided a constant distribution is assumed
 	 * Note: internal create_{mass, temp, density}_profile function, with controlling keywords, could be implemented, but are not in use for now
-  * optional: tolerance (of central density for convergence), default: 1e-6
-  * optional: max_iter(ations), default: 20
+   * optional: tolerance (of central density for convergence), default: 1e-6
+   * optional: max_iter(ations), default: 20
